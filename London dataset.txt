@@ -1,0 +1,301 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import plotly.express as px
+import seaborn as sns
+from scipy.stats import norm
+from scipy import stats
+from sklearn import preprocessing
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import LinearRegression
+from sklearn import metrics
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_error
+from math import sqrt
+from sklearn.metrics import r2_score
+
+data=pd.read_csv('listings_summary_london.csv')
+
+print("No. of Independent variable:15")
+print("No. of Dependent variable:1" )
+
+data.shape
+
+data.head()
+
+data.columns
+
+data.describe()
+
+# Drop duplicates based on all columns
+data.drop_duplicates(inplace=True)
+data.shape
+
+plt.figure(figsize=(15,12))
+sns.scatterplot(x='room_type', y='price', data=data)
+
+plt.xlabel("Room Type", size=13)
+plt.ylabel("Price", size=13)
+plt.title("Room Type vs Price",size=15, weight='bold')
+
+
+plt.figure(figsize=(15,12))
+sns.scatterplot(x='room_type', y='price', data=data)
+
+plt.xlabel("Room Type", size=13)
+plt.ylabel("Price", size=13)
+plt.title("Room Type vs Price",size=15, weight='bold')
+
+plt.figure(figsize=(10,10))
+sns.distplot(data['price'], fit=norm)
+plt.title("Price Distribution Plot",size=15, weight='bold')
+
+data['price_log'] = np.log(data.price+1)
+
+#log transformation, now, price feature have normal distribution
+plt.figure(figsize=(12,10))
+sns.distplot(data['price_log'], fit=norm)
+plt.title("Log-Price Distribution Plot",size=15, weight='bold')
+
+#the good fit indicates that normality is a reasonable approximation.
+plt.figure(figsize=(7,7))
+stats.probplot(data['price_log'], plot=plt)
+plt.show()
+
+london = data.drop(columns=['name','id' ,'host_id','host_name', 'neighbourhood_group',
+                                   'last_review','price'])
+
+
+x = london.isnull().sum()
+
+fig = px.bar(x, orientation = "h",  text_auto='.2s',
+            color_discrete_sequence= ["#ff6b00"] * len(x))
+fig.update_layout(
+    title="<b>Missing Value Count</b>",
+    xaxis_title="Total missing values",
+    yaxis_title="Column Names",
+    plot_bgcolor = "#ECECEC",
+    showlegend=False
+)
+fig.show()
+
+london.isnull().sum().sum()
+
+#Missing data replaced with mean
+mean = london['reviews_per_month'].mean()
+london['reviews_per_month'].fillna(mean, inplace=True)
+london.isnull().sum()
+
+q1 = london.quantile(0.25)
+q3 = london.quantile(0.75)
+iqr = q3 - q1
+london = london[~((london < (q1 - 1.5 * iqr)) |(london > (q3 + 1.5 * iqr))).any(axis=1)]
+
+
+london.describe()
+
+
+london.shape
+
+#Now it is time to make more details about data. A correlation table will be created and the Pearson method will be used.
+plt.figure(figsize=(15,12))
+palette = sns.diverging_palette(20, 220, n=256)
+corr=london.corr(method='pearson')
+sns.heatmap(corr, annot=True, fmt=".2f", cmap=palette, vmax=.3, center=0,
+            square=True, linewidths=.5, cbar_kws={"shrink": .5}).set(ylim=(11, 0))
+plt.title("Correlation Matrix",size=15, weight='bold')
+
+
+
+#The correlation table shows that there is no strong relationship between price and other features. This indicates no feature needed to be taken out of data. This relationship will be detailed with  Multicollinearity.
+
+london_x, london_y = london.iloc[:,:-1], london.iloc[:,-1]
+
+#Eigen vector of a correlation matrix.
+multicollinearity, V=np.linalg.eig(corr)
+multicollinearity
+
+#First, Standard Scaler technique will be used to normalize the data set. Thus, each feature has 0 mean and 1 standard deviation
+scaler = StandardScaler()
+london_x = scaler.fit_transform(london_x)
+
+#data will be split in a 70–30 ratio
+X_train, X_test, y_train, y_test = train_test_split(london_x, london_y, test_size=0.3,random_state=42)
+
+
+### Linear Regression ###
+
+def linear_reg(input_x, input_y, cv=5):
+    ## Defining parameters
+    model_LR= LinearRegression()
+
+    parameters = {'fit_intercept':[True,False], 'normalize':[True,False], 'copy_X':[True, False]}
+
+    ## Building Grid Search algorithm with cross-validation and Mean Squared Error score.
+
+    grid_search_LR = GridSearchCV(estimator=model_LR,  
+                         param_grid=parameters,
+                         scoring='neg_mean_squared_error',
+                         cv=cv,
+                         n_jobs=-1)
+
+    ## Lastly, finding the best parameters.
+
+    grid_search_LR.fit(input_x, input_y)
+    best_parameters_LR = grid_search_LR.best_params_  
+    best_score_LR = grid_search_LR.best_score_ 
+    print(best_parameters_LR)
+    print(best_score_LR)
+
+
+# linear_reg(data1_x, data1_y)
+
+##Linear Regression
+lr = LinearRegression(copy_X= True, fit_intercept = True, normalize = True)
+lr.fit(X_train, y_train)
+lr_pred= lr.predict(X_test)
+
+
+print('-------------Lineer Regression-----------')
+
+
+# Calculate R^2 score on the test data
+r2 = r2_score(y_test, y_pred)
+print("R^2 Score: ", r2)
+
+# Calculate the mean squared error of the predictions
+mse = mean_squared_error(y_test, y_pred)
+print("Mean Squared Error: ", mse)
+
+# Calculate Root Mean Squared Error (RMSE) on the test data
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print("Root Mean Squared Error: ", rmse)
+
+# Calculate Mean Absolute Error (MAE) on the test data
+mae = mean_absolute_error(y_test, y_pred)
+print("Mean Absolute Error: ", mae)
+
+
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+
+# Create a random forest regressor with 100 trees
+rf = RandomForestRegressor(n_estimators=100, random_state=42)
+
+# Fit the model to the training data
+rf.fit(X_train, y_train)
+
+# Make predictions on the test data
+y_pred = rf.predict(X_test)
+
+print('-------------Random Forest Regressor-----------')
+
+# Calculate R^2 score on the test data
+r2 = r2_score(y_test, y_pred)
+print("R^2 Score: ", r2)
+
+# Calculate the mean squared error of the predictions
+mse = mean_squared_error(y_test, y_pred)
+print("Mean Squared Error: ", mse)
+
+# Calculate Root Mean Squared Error (RMSE) on the test data
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print("Root Mean Squared Error: ", rmse)
+
+# Calculate Mean Absolute Error (MAE) on the test data
+mae = mean_absolute_error(y_test, y_pred)
+print("Mean Absolute Error: ", mae)
+
+
+
+import xgboost as xgb
+
+# Convert your data into DMatrix format for XGBoost
+dtrain = xgb.DMatrix(X_train, label=y_train)
+dtest = xgb.DMatrix(X_test)
+
+# Set hyperparameters for your model
+params = {
+    'objective': 'reg:linear',
+    'eval_metric': 'rmse',
+    'booster': 'gblinear',
+    'lambda': 0.1,
+    'alpha': 0.1,
+    'seed': 42
+}
+
+# Train your model
+model = xgb.train(params, dtrain)
+
+# Make predictions on your test data
+y_pred = model.predict(dtest)
+
+print('-------------linear Regression-----------')
+
+# Calculate R^2 score on the test data
+r2 = r2_score(y_test, y_pred)
+print("R^2 Score: ", r2)
+
+# Calculate the mean squared error on your test data
+mse = np.mean((y_test - y_pred)**2)
+print(f"Mean Squared Error: {mse}")
+
+# Calculate Root Mean Squared Error (RMSE) on the test data
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print("Root Mean Squared Error: ", rmse)
+
+# Calculate Mean Absolute Error (MAE) on the test data
+mae = mean_absolute_error(y_test, y_pred)
+print("Mean Absolute Error: ", mae)
+
+
+import xgboost as xgb
+
+
+# Convert your data into DMatrix format for XGBoost
+dtrain = xgb.DMatrix(X_train, label=y_train)
+dtest = xgb.DMatrix(X_test)
+
+# Set hyperparameters for your model
+params = {
+    'objective': 'reg:squarederror',
+    'eval_metric': 'rmse',
+    'max_depth': 5,
+    'eta': 0.1,
+    'subsample': 0.8,
+    'colsample_bytree': 0.8,
+    'seed': 42
+}
+
+# Set the number of estimators
+n_estimators = 100
+
+# Train your model
+model = xgb.train(params, dtrain, num_boost_round=n_estimators)
+
+# Make predictions on your test data
+y_pred = model.predict(dtest)
+
+# Calculate the mean squared error on your test data
+mse = np.mean((y_test - y_pred)**2)
+print(f"Mean Squared Error: {mse}")
+
+# Calculate R^2 score on the test data
+r2 = r2_score(y_test, y_pred)
+print("R^2 Score: ", r2)
+
+# Calculate Root Mean Squared Error (RMSE) on the test data
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print("Root Mean Squared Error: ", rmse)
+
+# Calculate Mean Absolute Error (MAE) on the test data
+mae = mean_absolute_error(y_test, y_pred)
+print("Mean Absolute Error: ", mae)
+
+
+
+
